@@ -168,14 +168,23 @@ final class GitHubClient {
         var url: String?
     }
 
-    func latestRun(owner: String, repo: String) async throws -> RunState {
-        let data = try await send(request("GET", "repos/\(owner)/\(repo)/actions/runs?per_page=5"))
+    /// 最近 10 条 run（新到旧）。逐文件推送会触发一串 run 排队，查状态要在一串里找已完成的，
+    /// 只看最新一条会永远停在 queued/in_progress，所以给上层返回整个数组自己挑。
+    func recentRuns(owner: String, repo: String) async throws -> [RunState] {
+        let data = try await send(request("GET", "repos/\(owner)/\(repo)/actions/runs?per_page=10"))
         let object = try jsonObject(data)
         let runs = object["workflow_runs"] as? [[String: Any]] ?? []
+        return runs.map { run in
+            RunState(status: (run["status"] as? String) ?? "unknown",
+                     conclusion: run["conclusion"] as? String,
+                     url: run["html_url"] as? String)
+        }
+    }
+
+    func latestRun(owner: String, repo: String) async throws -> RunState {
+        let runs = try await recentRuns(owner: owner, repo: repo)
         guard let run = runs.first else { return RunState(status: "not_found", conclusion: nil, url: nil) }
-        return RunState(status: (run["status"] as? String) ?? "unknown",
-                        conclusion: run["conclusion"] as? String,
-                        url: run["html_url"] as? String)
+        return run
     }
 
     /// Release 里找 .deb 资产，返回文件名和公开下载地址（公开仓可直接下载，不带令牌跟随跳转）。
