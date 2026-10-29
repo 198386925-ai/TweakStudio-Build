@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
@@ -112,9 +113,10 @@ struct ContentView: View {
         .sheet(item: shareItem) { item in
             ShareSheet(items: [item.url])
         }
-        .fileImporter(isPresented: $showZipImporter, allowedContentTypes: [.data]) { result in
-            switch result {
-            case .success(let url):
+        .sheet(isPresented: $showZipImporter) {
+            ZipDocumentPicker { url in
+                showZipImporter = false
+                guard let url else { return }
                 guard url.pathExtension.lowercased() == "zip" else {
                     store.statusText = "导入失败：请选择 zip 文件"
                     return
@@ -124,8 +126,6 @@ struct ContentView: View {
                         lastRecord = record
                     }
                 }
-            case .failure(let error):
-                store.statusText = "导入失败：" + error.localizedDescription
             }
         }
     }
@@ -137,6 +137,36 @@ struct ContentView: View {
 
     private var shareItem: Binding<ShareItem?> {
         Binding(get: { shareURL.map(ShareItem.init) }, set: { shareURL = $0?.url })
+    }
+}
+
+/// UIKit 文档选择器（绕过 SwiftUI fileImporter 在 TabView 中的回调问题）
+struct ZipDocumentPicker: UIViewControllerRepresentable {
+    var onPick: (URL?) -> Void
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.data], asCopy: true)
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
+
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        var onPick: (URL?) -> Void
+
+        init(onPick: @escaping (URL?) -> Void) { self.onPick = onPick }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            onPick(urls.first)
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onPick(nil)
+        }
     }
 }
 
