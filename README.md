@@ -17,12 +17,12 @@
 
 源码推到新仓库 `TweakStudio-Build` 的 `main`（排除 `.github/`），然后需要在 GitHub 网页端新建一个文件：`.github/workflows/build-ipa.yml`，内容见同批交付的 `workflow-for-user/build-ipa.yml`（在源码目录外单独发）。建好后推送/手动触发即在 GitHub Actions（macos-15-intel + Xcode 26）上构建**未签名** IPA：
 
-- 产物命名：`TweakStudio-1.0.0-Build(1).ipa`
-- 同时产出干净源码备份 `TweakStudio-1.0.0-Build(1)-src.zip`
+- 产物命名：`TweakStudio-1.0.0-Build(2).ipa`
+- 同时产出干净源码备份 `TweakStudio-1.0.0-Build(2)-src.zip`
 
 IPA 未签名，安装前需自行签名。
 
 ## 版本规则
 
 - 版本号 `CFBundleShortVersionString`：`1.0.0`
-- 构建号 `CFBundleVersion`：`1`（下一版 +1；版本变更时按既有规则处理）
+- 构建号 `CFBundleVersion`：`2`（下一版 +1；版本变更时按既有规则处理）
