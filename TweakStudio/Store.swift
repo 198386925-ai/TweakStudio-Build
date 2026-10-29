@@ -266,26 +266,48 @@ final class TweakStore: ObservableObject {
         return files.sorted { $0.0 < $1.0 }.map { (relative: $0.0, data: $0.1) }
     }
 
+    /// 查云端打包状态的一次判定结果（refreshStatus 与 pollUntilDone 共用同一套，不许两处各写一份）。
+    private enum BuildCheckOutcome {
+        case tookDeb            // 最新已完成 run 成功，已走 tryDownloadDeb 取 deb（取没取到它内部已更新状态）
+        case failed(String)     // 最新已完成 run 失败，带 conclusion 原文
+        case notFound           // 一条 run 都没有
+        case inProgress(String) // 一条已完成的都没有，带最新一条未完成 run 的状态
+    }
+
+    /// 查一次云端打包状态：逐文件推送会触发一串 run 排队，只看最新一条几乎永远是
+    /// queued/in_progress，会错过排在前面、早已打好的 deb。所以优先在一串 run 里找
+    /// 最近一条已完成的：success 就取 Release 里的 deb，failure 就按失败收尾；
+    /// 一条已完成的都没有，才按最新一条未完成 run 报打包中。
+    private func checkBuildOnce(client: GitHubClient, recordID: UUID, owner: String, repo: String) async throws -> BuildCheckOutcome {
+        let runs = try await client.recentRuns(owner: owner, repo: repo)
+        guard let newest = runs.first else { return .notFound }
+        if let completed = runs.first(where: { $0.status == "completed" }) {
+            if completed.conclusion == "success" {
+                await tryDownloadDeb(recordID: recordID, owner: owner, repo: repo)
+                return .tookDeb
+            }
+            return .failed(completed.conclusion ?? "unknown")
+        }
+        return .inProgress(newest.status)
+    }
+
     private func pollUntilDone(recordID: UUID, owner: String, repo: String) async {
         guard let client = client() else { return }
         for _ in 0..<24 {
             try? await Task.sleep(nanoseconds: 15_000_000_000)
-            guard let record = records.first(where: { $0.id == recordID }) else { return }
+            guard records.contains(where: { $0.id == recordID }) else { return }
             do {
-                let run = try await client.latestRun(owner: owner, repo: repo)
-                switch (run.status, run.conclusion) {
-                case ("completed", .some("success")):
-                    _ = record
-                    await tryDownloadDeb(recordID: recordID, owner: owner, repo: repo)
+                switch try await checkBuildOnce(client: client, recordID: recordID, owner: owner, repo: repo) {
+                case .tookDeb:
                     return
-                case ("completed", .some(let conclusion)):
+                case .failed(let conclusion):
                     update(recordID) { $0.buildStatus = "打包失败（\(conclusion)）" }
                     statusText = "云端打包结束了，但没成功：\(conclusion)"
                     return
-                case ("not_found", _):
+                case .notFound:
                     update(recordID) { $0.buildStatus = "已推送，还没看到打包任务" }
-                default:
-                    update(recordID) { $0.buildStatus = "打包中（\(run.status)）" }
+                case .inProgress(let status):
+                    update(recordID) { $0.buildStatus = "打包中（\(status)）" }
                 }
             } catch {
                 update(recordID) { $0.buildStatus = "查状态失败：" + error.localizedDescription }
@@ -305,19 +327,18 @@ final class TweakStore: ObservableObject {
         working = true
         defer { working = false }
         do {
-            let run = try await client.latestRun(owner: ownerName, repo: repo)
-            switch (run.status, run.conclusion) {
-            case ("completed", .some("success")):
-                await tryDownloadDeb(recordID: record.id, owner: ownerName, repo: repo)
-            case ("completed", .some(let conclusion)):
+            switch try await checkBuildOnce(client: client, recordID: record.id, owner: ownerName, repo: repo) {
+            case .tookDeb:
+                break // 取 deb 的结果 tryDownloadDeb 内部已经更新状态和文案
+            case .failed(let conclusion):
                 update(record.id) { $0.buildStatus = "打包失败（\(conclusion)）" }
                 statusText = "打包失败：\(conclusion)"
-            case ("not_found", _):
+            case .notFound:
                 update(record.id) { $0.buildStatus = "已推送，还没看到打包任务" }
                 statusText = "还没看到打包任务，刚推送的话等一会儿再刷新"
-            default:
-                update(record.id) { $0.buildStatus = "打包中（\(run.status)）" }
-                statusText = "还在打包：\(run.status)"
+            case .inProgress(let status):
+                update(record.id) { $0.buildStatus = "打包中（\(status)）" }
+                statusText = "还在打包：\(status)"
             }
         } catch {
             statusText = "查状态失败：" + error.localizedDescription
