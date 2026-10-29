@@ -24,8 +24,15 @@ enum ZipWriter {
         cal.timeZone = TimeZone.current
         let c = cal.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         let year = max(1980, c.year ?? 1980)
-        let dosTime = UInt16(((c.hour ?? 0) << 11) | ((c.minute ?? 0) << 5) | ((c.second ?? 0) / 2))
-        let dosDate = UInt16(((year - 1980) << 9) | ((c.month ?? 1) << 5) | (c.day ?? 1))
+        // 拆成小表达式，避免编译器类型检查超时（Build 1 的 error: 在此处）
+        let hour: UInt16 = UInt16(c.hour ?? 0)
+        let minute: UInt16 = UInt16(c.minute ?? 0)
+        let second: UInt16 = UInt16(c.second ?? 0)
+        let dosTime: UInt16 = (hour << 11) | (minute << 5) | (second / 2)
+        let yearPart: UInt16 = UInt16(year - 1980) << 9
+        let monthPart: UInt16 = UInt16(c.month ?? 1) << 5
+        let dayPart: UInt16 = UInt16(c.day ?? 1)
+        let dosDate: UInt16 = yearPart | monthPart | dayPart
         return (dosTime, dosDate)
     }
 
