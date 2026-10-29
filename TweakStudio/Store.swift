@@ -94,6 +94,115 @@ final class TweakStore: ObservableObject {
         }
     }
 
+    // MARK: - 导入现成源码 zip（本版新增）
+
+    /// 收一份现成的插件源码 zip：安全作用域读取 → 解压 → 定位工程根并检查 Makefile/control
+    /// → 缺云端打包说明时自动补模板 build.yml → 存成一条历史记录，之后走和生成工程相同的推送/打包流程。
+    @discardableResult
+    func importProject(from pickedURL: URL) async -> TweakRecord? {
+        working = true
+        defer { working = false }
+        let fm = FileManager.default
+        let stamp = Int(Date().timeIntervalSince1970)
+        let staging = rootDir.appendingPathComponent("ImportStaging-\(stamp)", isDirectory: true)
+        var createdDir: URL? = nil
+        defer { try? fm.removeItem(at: staging) }
+        do {
+            let scoped = pickedURL.startAccessingSecurityScopedResource()
+            let zipData: Data
+            do {
+                zipData = try Data(contentsOf: pickedURL)
+            } catch {
+                if scoped { pickedURL.stopAccessingSecurityScopedResource() }
+                throw GeneratorError.message("选中的 zip 读不到")
+            }
+            if scoped { pickedURL.stopAccessingSecurityScopedResource() }
+
+            let extracted = staging.appendingPathComponent("extracted", isDirectory: true)
+            _ = try ZipReader.extract(data: zipData, to: extracted)
+            let sourceRoot = try ProjectImporter.locateRoot(in: extracted)
+            let control = ProjectImporter.parseControl(at: sourceRoot)
+            let zipStem = pickedURL.deletingPathExtension().lastPathComponent
+            let controlName = (control["Name"] ?? "").trimmingCharacters(in: .whitespaces)
+            let display = controlName.isEmpty ? zipStem : controlName
+            let slug = ProjectImporter.repoSlug(package: control["Package"], fallback: zipStem)
+
+            var folderName = "\(slug)-\(stamp)"
+            var suffix = 2
+            while fm.fileExists(atPath: projectsDir.appendingPathComponent(folderName).path) {
+                folderName = "\(slug)-\(stamp)-\(suffix)"
+                suffix += 1
+            }
+            let dir = projectsDir.appendingPathComponent(folderName, isDirectory: true)
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            createdDir = dir
+            let projectDir = dir.appendingPathComponent("project", isDirectory: true)
+            try fm.moveItem(at: sourceRoot, to: projectDir)
+
+            var problems: [String] = []
+            if injectWorkflowIfNeeded(projectDir: projectDir, display: display, slug: slug) {
+                problems.append("原工程没有云端打包说明，已自动补上模板的 build.yml")
+            }
+            var input = TweakInput()
+            input.name = display
+            input.slug = slug
+            input.displayName = display
+            input.descriptionText = (control["Description"] ?? "")
+                .split(separator: "\n").first.map(String.init) ?? ""
+            var record = TweakRecord(input: input, folderName: folderName, zipName: "\(slug)-project.zip")
+            record.problems = problems
+            // 以补全后的工程重新打包，保证分享/重下的 zip 与将要推送的内容一致
+            try ZipWriter.writeZip(of: projectDir, to: dir.appendingPathComponent(record.zipName))
+            records.insert(record, at: 0)
+            save()
+            createdDir = nil
+            statusText = problems.isEmpty
+                ? "导入好了：\(display)，可以在历史里送去打成品"
+                : "导入好了：\(display)（\(problems[0])）"
+            return record
+        } catch {
+            if let createdDir { try? fm.removeItem(at: createdDir) }
+            statusText = "导入失败：" + error.localizedDescription
+            return nil
+        }
+    }
+
+    /// 工程缺 .github/workflows 打包说明时，用自带模板补一份（占位符口径与 Generator 生成流程一致）。
+    /// 返回 true 表示确实补了。已有任意 yml/yaml 就不动人家的。
+    private func injectWorkflowIfNeeded(projectDir: URL, display: String, slug: String) -> Bool {
+        let fm = FileManager.default
+        let workflowsDir = projectDir.appendingPathComponent(".github/workflows", isDirectory: true)
+        if let names = try? fm.contentsOfDirectory(atPath: workflowsDir.path),
+           names.contains(where: { $0.hasSuffix(".yml") || $0.hasSuffix(".yaml") }) {
+            return false
+        }
+        guard let templatesDir = Bundle.main.url(forResource: "Templates", withExtension: nil),
+              let raw = try? String(contentsOf: templatesDir.appendingPathComponent("github-workflow/build.yml"), encoding: .utf8),
+              let defaults else { return false }
+        // CI 标题与 Generator.prepare 一致：JSON 字符串片段（自带引号）
+        var title = display
+        let titleObject: [String] = [display + " v${{ steps.bump.outputs.package_version }}"]
+        if let titleData = try? JSONSerialization.data(withJSONObject: titleObject, options: []),
+           let titleJSON = String(data: titleData, encoding: .utf8) {
+            title = String(titleJSON.dropFirst().dropLast())
+        }
+        let workflowName = (display.contains(":") || display.contains("\n")) ? slug : display
+        let values = [
+            "__NAME__": workflowName,
+            "__SDK_VERSION__": defaults.sdk_version,
+            "__CI_RELEASE_TITLE__": title,
+        ]
+        guard let rendered = try? Generator.substitute(raw, values),
+              !Generator.containsToken(rendered) else { return false }
+        do {
+            try fm.createDirectory(at: workflowsDir, withIntermediateDirectories: true)
+            try rendered.write(to: workflowsDir.appendingPathComponent("build.yml"), atomically: true, encoding: .utf8)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     // MARK: - 送去打成品（清单第 4 项）
 
     func client() -> GitHubClient? {
