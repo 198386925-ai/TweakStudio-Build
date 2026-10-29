@@ -2,7 +2,7 @@ import SwiftUI
 
 struct HistoryView: View {
     @EnvironmentObject var store: TweakStore
-    @State private var shareURL: URL? = nil
+    @State private var shareItem: ShareItem? = nil
 
     var body: some View {
         List {
@@ -11,27 +11,23 @@ struct HistoryView: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(store.records) { record in
-                RecordRow(record: record, shareURL: $shareURL)
+                RecordRow(record: record, shareItem: $shareItem)
             }
             .onDelete { offsets in
                 for index in offsets { store.delete(store.records[index]) }
             }
         }
         .navigationTitle("历史")
-        .sheet(item: shareItem) { item in
+        .sheet(item: $shareItem) { item in
             ShareSheet(items: [item.url])
         }
-    }
-
-    private var shareItem: Binding<ShareItem?> {
-        Binding(get: { shareURL.map(ShareItem.init) }, set: { shareURL = $0?.url })
     }
 }
 
 private struct RecordRow: View {
     @EnvironmentObject var store: TweakStore
     let record: TweakRecord
-    @Binding var shareURL: URL?
+    @Binding var shareItem: ShareItem?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -49,11 +45,12 @@ private struct RecordRow: View {
                     .font(.footnote).foregroundStyle(.orange)
             }
             HStack(spacing: 14) {
-                Button("分享工程") { shareURL = store.zipURL(record) }
+                Button("分享工程") { shareItem = ShareItem(url: store.zipURL(record)) }
                 if let deb = store.debURL(record) {
-                    Button("分享 deb") { shareURL = deb }
+                    Button("分享 deb") { shareItem = ShareItem(url: deb) }
                 } else if record.repoFullName != nil {
                     Button("刷新状态") { Task { await store.refreshStatus(record: record) } }
+                    Button("重新推送") { Task { await store.uploadAndBuild(record: record) } }
                 } else {
                     Button("送去打成品") { Task { await store.uploadAndBuild(record: record) } }
                 }
