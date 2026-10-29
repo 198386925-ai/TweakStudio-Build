@@ -18,6 +18,8 @@
 		A10000000000000000000009 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* ShareSheet.swift */; };
 		A10000000000000000000010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* Assets.xcassets */; };
 		A10000000000000000000011 /* Templates in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* Templates */; };
+		A10000000000000000000012 /* ZipReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* ZipReader.swift */; };
+		A10000000000000000000013 /* ZipInflate.m in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* ZipInflate.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +36,10 @@
 		B10000000000000000000011 /* Templates */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/Templates; sourceTree = "<group>"; };
 		B10000000000000000000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B10000000000000000000013 /* TweakStudio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TweakStudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000014 /* ZipReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZipReader.swift; sourceTree = "<group>"; };
+		B10000000000000000000015 /* ZipInflate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ZipInflate.h; sourceTree = "<group>"; };
+		B10000000000000000000016 /* ZipInflate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ZipInflate.m; sourceTree = "<group>"; };
+		B10000000000000000000017 /* TweakStudio-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "TweakStudio-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,6 +72,10 @@
 				B10000000000000000000007 /* GitHubClient.swift */,
 				B10000000000000000000008 /* Store.swift */,
 				B10000000000000000000009 /* ShareSheet.swift */,
+				B10000000000000000000014 /* ZipReader.swift */,
+				B10000000000000000000015 /* ZipInflate.h */,
+				B10000000000000000000016 /* ZipInflate.m */,
+				B10000000000000000000017 /* TweakStudio-Bridging-Header.h */,
 				B10000000000000000000010 /* Assets.xcassets */,
 				B10000000000000000000011 /* Templates */,
 				B10000000000000000000012 /* Info.plist */,
@@ -147,6 +157,8 @@
 				A10000000000000000000007 /* GitHubClient.swift in Sources */,
 				A10000000000000000000008 /* Store.swift in Sources */,
 				A10000000000000000000009 /* ShareSheet.swift in Sources */,
+				A10000000000000000000012 /* ZipReader.swift in Sources */,
+				A10000000000000000000013 /* ZipInflate.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -194,10 +206,15 @@
 				INFOPLIST_FILE = TweakStudio/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MARKETING_VERSION = 1.0.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lz",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.youyou.tweakstudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "TweakStudio/TweakStudio-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -213,10 +230,15 @@
 				INFOPLIST_FILE = TweakStudio/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MARKETING_VERSION = 1.0.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lz",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.youyou.tweakstudio;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "TweakStudio/TweakStudio-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
