@@ -112,9 +112,13 @@ struct ContentView: View {
         .sheet(item: shareItem) { item in
             ShareSheet(items: [item.url])
         }
-        .fileImporter(isPresented: $showZipImporter, allowedContentTypes: [UTType.zip]) { result in
+        .fileImporter(isPresented: $showZipImporter, allowedContentTypes: [.data]) { result in
             switch result {
             case .success(let url):
+                guard url.pathExtension.lowercased() == "zip" else {
+                    store.statusText = "导入失败：请选择 zip 文件"
+                    return
+                }
                 Task {
                     if let record = await store.importProject(from: url) {
                         lastRecord = record
