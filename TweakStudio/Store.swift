@@ -252,10 +252,15 @@ final class TweakStore: ObservableObject {
         guard let enumerator = fm.enumerator(at: dir, includingPropertiesForKeys: [.isRegularFileKey]) else {
             throw GeneratorError.message("工程目录读不到")
         }
+        // 先把目录和文件路径都规范化再剥前缀算相对路径：真机上枚举出的文件 URL 带 /private 前缀、
+        // 目录 path 不带，两边原始字符串长度对不齐，硬减会残留一段目录名，推出去的文件会多一层前缀。
+        let basePath = dir.resolvingSymlinksInPath().path
         var files: [(String, Data)] = []
         for case let url as URL in enumerator {
             guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
-            let relative = String(url.path.dropFirst(dir.path.count + 1))
+            let filePath = url.resolvingSymlinksInPath().path
+            guard filePath.hasPrefix(basePath + "/") else { continue }
+            let relative = String(filePath.dropFirst(basePath.count + 1))
             files.append((relative, try Data(contentsOf: url)))
         }
         return files.sorted { $0.0 < $1.0 }.map { (relative: $0.0, data: $0.1) }
