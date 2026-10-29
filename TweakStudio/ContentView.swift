@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject var store: TweakStore
@@ -6,6 +7,7 @@ struct ContentView: View {
     @State private var problems: [String] = []
     @State private var lastRecord: TweakRecord? = nil
     @State private var shareURL: URL? = nil
+    @State private var showZipImporter = false
     @State private var tokenDraft: String = ""
     @State private var hasToken: Bool = TokenStore.load() != nil
 
@@ -61,6 +63,7 @@ struct ContentView: View {
                     }
                 }
                 .font(.headline)
+                Button("导入源码 zip") { showZipImporter = true }
                 if let record = currentRecord {
                     Button("分享工程 zip") { shareURL = store.zipURL(record) }
                     Button("送去打成品") {
@@ -108,6 +111,18 @@ struct ContentView: View {
         .navigationTitle("插件工坊")
         .sheet(item: shareItem) { item in
             ShareSheet(items: [item.url])
+        }
+        .fileImporter(isPresented: $showZipImporter, allowedContentTypes: [UTType.zip]) { result in
+            switch result {
+            case .success(let url):
+                Task {
+                    if let record = await store.importProject(from: url) {
+                        lastRecord = record
+                    }
+                }
+            case .failure(let error):
+                store.statusText = "导入失败：" + error.localizedDescription
+            }
         }
     }
 
